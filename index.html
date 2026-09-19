@@ -57,8 +57,8 @@
       <button id="stopBtn" class="stop hidden">⏹ DỪNG LIVE</button>
       <div id="driverInfo" class="status">Đang chờ...</div>
 
-      <div class="route-admin">
-        <div class="route-admin-title"><span>➡️ Điểm tiếp theo</span><small>CẬP NHẬT CHO NGƯỜI XEM</small></div>
+      <div class="route-admin" id="routeAdminPanel">
+        <div class="route-admin-title"><span>➡️ ĐIỂM TIẾP THEO</span><small>CẬP NHẬT CHO NGƯỜI XEM</small></div>
         <input id="nextName" type="text" placeholder="Tên điểm tiếp theo (VD: Chợ Bình Long)">
         <input id="nextAddress" type="text" placeholder="Địa chỉ / ghi chú">
         <div class="route-row"><input id="nextTime" type="text" placeholder="Giờ show (VD: 18:00)"><input id="nextLat" type="number" step="any" placeholder="Vĩ độ"><input id="nextLng" type="number" step="any" placeholder="Kinh độ"></div>
@@ -145,7 +145,7 @@
 </script>
 <script>
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js?v=5').then(r=>r.update()).catch(() => {}));
 }
 </script>
 <script type="module">
