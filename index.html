@@ -56,6 +56,16 @@
       <button id="startBtn" class="live hidden">🔴 BẮT ĐẦU LIVE</button>
       <button id="stopBtn" class="stop hidden">⏹ DỪNG LIVE</button>
       <div id="driverInfo" class="status">Đang chờ...</div>
+
+      <div class="route-admin">
+        <div class="route-admin-title"><span>➡️ Điểm tiếp theo</span><small>CẬP NHẬT CHO NGƯỜI XEM</small></div>
+        <input id="nextName" type="text" placeholder="Tên điểm tiếp theo (VD: Chợ Bình Long)">
+        <input id="nextAddress" type="text" placeholder="Địa chỉ / ghi chú">
+        <div class="route-row"><input id="nextTime" type="text" placeholder="Giờ show (VD: 18:00)"><input id="nextLat" type="number" step="any" placeholder="Vĩ độ"><input id="nextLng" type="number" step="any" placeholder="Kinh độ"></div>
+        <div class="route-hint">Dán tọa độ Google Maps vào Vĩ độ + Kinh độ để hệ thống tính khoảng cách.</div>
+        <div class="route-actions"><button id="saveNextBtn" class="route-save">📍 LƯU ĐIỂM TIẾP THEO</button><button id="clearNextBtn" class="route-clear">✕ XOÁ</button></div>
+        <div id="routeAdminInfo" class="route-admin-info">Chưa có điểm tiếp theo.</div>
+      </div>
     </section>
 
     <section id="viewer" class="viewer hidden">
@@ -79,6 +89,18 @@
         <div class="info-box"><span>🎯</span><div><small>ĐỘ CHÍNH XÁC</small><b id="accuracy">--</b></div></div>
         <div class="info-box"><span>🕐</span><div><small>CẬP NHẬT</small><b id="updated">--</b></div></div>
         <div class="info-box"><span>🚗</span><div><small>TRẠNG THÁI</small><b id="movement">--</b></div></div>
+      </div>
+
+      <div id="nextStopCard" class="next-stop-card hidden">
+        <div class="next-stop-head"><div><span class="eyebrow">LỘ TRÌNH TIẾP THEO</span><h3>➡️ Điểm tiếp theo</h3></div><span id="routeStatus" class="route-status">SẮP DI CHUYỂN</span></div>
+        <div class="next-stop-name" id="nextStopName">--</div>
+        <div class="next-stop-address" id="nextStopAddress">--</div>
+        <div class="next-stop-stats">
+          <div><small>🕐 GIỜ SHOW</small><b id="nextStopTime">--</b></div>
+          <div><small>📏 KHOẢNG CÁCH</small><b id="nextStopDistance">--</b></div>
+          <div><small>⏱️ DỰ KIẾN</small><b id="nextStopEta">--</b></div>
+        </div>
+        <div class="next-stop-actions"><button id="nextStopMapBtn" class="next-map-btn">🧭 XEM ĐIỂM TRÊN BẢN ĐỒ</button></div>
       </div>
 
       <div class="action-grid">
@@ -129,7 +151,7 @@ if ('serviceWorker' in navigator) {
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
-import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-database.js";
+import { getDatabase, ref, set, update, onValue } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-database.js";
 import { firebaseConfig } from "./firebase-config.js";
 
 const app = initializeApp(firebaseConfig);
@@ -137,7 +159,7 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 const liveRef = ref(db, "live/hong_lan_139");
 const $ = id => document.getElementById(id);
-let watchId = null, lastSent = 0, map, marker, accuracyCircle, currentData = null, viewerStarted = false;
+let watchId = null, lastSent = 0, map, marker, accuracyCircle, nextMarker, currentData = null, viewerStarted = false, currentRoute = null;
 
 function showMode(which){
   $(which).classList.remove("hidden");
@@ -161,7 +183,7 @@ $("startBtn").onclick=()=>{
   if(!navigator.geolocation){$("driverInfo").textContent="iPhone không hỗ trợ GPS trình duyệt.";return;}
   watchId=navigator.geolocation.watchPosition(async pos=>{
     const now=Date.now(); if(now-lastSent<5000)return; lastSent=now; const c=pos.coords;
-    try{await set(liveRef,{live:true,lat:c.latitude,lng:c.longitude,accuracy:c.accuracy??null,speed:c.speed??null,heading:c.heading??null,updatedAt:now});
+    try{await update(liveRef,{live:true,lat:c.latitude,lng:c.longitude,accuracy:c.accuracy??null,speed:c.speed??null,heading:c.heading??null,updatedAt:now});
       $("driverInfo").textContent=`LIVE • ${c.latitude.toFixed(6)}, ${c.longitude.toFixed(6)} • ±${Math.round(c.accuracy||0)}m`;
     }catch(e){$("driverInfo").textContent="Không gửi được GPS: "+e.message;}
   },err=>{$("driverInfo").textContent="GPS lỗi: "+err.message;},{enableHighAccuracy:true,maximumAge:2000,timeout:15000});
@@ -169,8 +191,48 @@ $("startBtn").onclick=()=>{
 };
 $("stopBtn").onclick=async()=>{
   if(watchId!==null)navigator.geolocation.clearWatch(watchId); watchId=null;
-  await set(liveRef,{live:false,updatedAt:Date.now()}); $("stopBtn").classList.add("hidden");$("startBtn").classList.remove("hidden");$("driverInfo").textContent="Đã dừng LIVE.";
+  await update(liveRef,{live:false,updatedAt:Date.now()}); $("stopBtn").classList.add("hidden");$("startBtn").classList.remove("hidden");$("driverInfo").textContent="Đã dừng LIVE.";
 };
+
+async function saveNextRoute(){
+  if(!auth.currentUser){$("routeAdminInfo").textContent="Hãy đăng nhập trước khi cập nhật điểm tiếp theo.";return;}
+  const name=$("nextName").value.trim(), address=$("nextAddress").value.trim(), time=$("nextTime").value.trim();
+  const lat=parseFloat($("nextLat").value), lng=parseFloat($("nextLng").value);
+  if(!name || !Number.isFinite(lat) || !Number.isFinite(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180){
+    $("routeAdminInfo").textContent="Nhập tên điểm và tọa độ hợp lệ (Vĩ độ / Kinh độ).";return;
+  }
+  const route={name,address,time,lat,lng,updatedAt:Date.now()};
+  try{await set(ref(db,"live/hong_lan_139/nextStop"),route);$("routeAdminInfo").textContent=`Đã cập nhật: ${name} • ${lat.toFixed(6)}, ${lng.toFixed(6)}`;}
+  catch(e){$("routeAdminInfo").textContent="Không lưu được điểm tiếp theo: "+e.message;}
+}
+$("saveNextBtn").onclick=saveNextRoute;
+$("clearNextBtn").onclick=async()=>{
+  if(!auth.currentUser)return;
+  try{await set(ref(db,"live/hong_lan_139/nextStop"),null);$("routeAdminInfo").textContent="Đã xoá điểm tiếp theo.";$("nextName").value=$("nextAddress").value=$("nextTime").value=$("nextLat").value=$("nextLng").value="";}
+  catch(e){$("routeAdminInfo").textContent="Không xoá được: "+e.message;}
+};
+
+function haversineKm(a,b,c,d){const R=6371,rad=Math.PI/180, x=(c-a)*rad,y=(d-b)*rad;const h=Math.sin(x/2)**2+Math.cos(a*rad)*Math.cos(c*rad)*Math.sin(y/2)**2;return R*2*Math.atan2(Math.sqrt(h),Math.sqrt(1-h));}
+function formatDistance(km){return km<1?`${Math.round(km*1000)} m`:`${km.toFixed(1)} km`;}
+function routeEta(km){
+  const speedKmh=currentData&&Number.isFinite(currentData.speed)&&currentData.speed>2?currentData.speed*3.6:30;
+  const min=Math.max(1,Math.round(km/speedKmh*60));
+  return `~${min} phút`;
+}
+function renderRoute(route){
+  currentRoute=route;
+  if(!route||!Number.isFinite(Number(route.lat))||!Number.isFinite(Number(route.lng))){
+    $("nextStopCard").classList.add("hidden"); if(nextMarker&&map){map.removeLayer(nextMarker);nextMarker=null;} return;
+  }
+  const lat=Number(route.lat),lng=Number(route.lng);
+  $("nextStopCard").classList.remove("hidden");$("nextStopName").textContent=route.name||"Điểm tiếp theo";$("nextStopAddress").textContent=route.address||"";$("nextStopTime").textContent=route.time||"--";
+  if(currentData){const km=haversineKm(currentData.lat,currentData.lng,lat,lng);$("nextStopDistance").textContent=formatDistance(km);$("nextStopEta").textContent=km<0.15?"Sắp đến":routeEta(km);$("routeStatus").textContent=km<0.15?"SẮP ĐẾN":(currentData.speed!=null&&currentData.speed*3.6>5?"ĐANG DI CHUYỂN":"ĐIỂM TIẾP THEO");}
+  if(map&&window.L){
+    const icon=L.divIcon({className:"next-marker",html:`<div>★</div>`,iconSize:[42,42],iconAnchor:[21,21]});
+    if(!nextMarker)nextMarker=L.marker([lat,lng],{icon}).addTo(map).bindPopup(`<b>${route.name||"Điểm tiếp theo"}</b><br>${route.address||""}${route.time?`<br>🕐 ${route.time}`:""}`); else nextMarker.setLatLng([lat,lng]).setIcon(icon);
+  }
+}
+$("nextStopMapBtn").onclick=()=>{if(currentRoute&&map)map.setView([Number(currentRoute.lat),Number(currentRoute.lng)],16,{animate:true});};
 
 function startViewer(){
   if(viewerStarted)return; viewerStarted=true;
@@ -182,6 +244,7 @@ function startViewer(){
     $("zoomInBtn").onclick=()=>map.zoomIn(); $("zoomOutBtn").onclick=()=>map.zoomOut();
     $("locateBtn").onclick=()=>{if(currentData)map.setView([currentData.lat,currentData.lng],17,{animate:true});};
     onValue(liveRef,snap=>renderLive(snap.val()));
+    onValue(ref(db,"live/hong_lan_139/nextStop"),snap=>renderRoute(snap.val()));
   }; document.head.appendChild(js);
 }
 function renderLive(d){
@@ -200,6 +263,7 @@ function renderLive(d){
   $("accuracy").textContent=`±${acc}m`;
   $("movement").textContent=d.speed!=null&&d.speed>0.5?`${(d.speed*3.6).toFixed(1)} km/h`:"Đang đứng / chậm";
   updateAge();
+  if(currentRoute) renderRoute(currentRoute);
 }
 function updateAge(){if(!currentData)return;const sec=Math.max(0,Math.round((Date.now()-(currentData.updatedAt||Date.now()))/1000));$("updated").textContent=sec<2?"Vừa xong":`${sec}s trước`;}
 setInterval(updateAge,1000);
