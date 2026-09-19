@@ -91,6 +91,13 @@
         <div class="info-box"><span>🚗</span><div><small>TRẠNG THÁI</small><b id="movement">--</b></div></div>
       </div>
 
+      <div class="action-grid">
+        <button id="followBtn" class="action primary-action">🎯 <span>THEO DÕI ĐOÀN</span></button>
+        <button id="mapsBtn" class="action dark-action">🧭 <span>MỞ GOOGLE MAPS</span></button>
+        <button id="shareBtn" class="action dark-action share-action">↗ <span>CHIA SẺ LIVE</span></button>
+      </div>
+
+
       <div id="nextStopCard" class="next-stop-card hidden">
         <div class="next-stop-head"><div><span class="eyebrow">LỘ TRÌNH TIẾP THEO</span><h3>➡️ Điểm tiếp theo</h3></div><span id="routeStatus" class="route-status">SẮP DI CHUYỂN</span></div>
         <div class="next-stop-name" id="nextStopName">--</div>
@@ -100,13 +107,10 @@
           <div><small>📏 KHOẢNG CÁCH</small><b id="nextStopDistance">--</b></div>
           <div><small>⏱️ DỰ KIẾN</small><b id="nextStopEta">--</b></div>
         </div>
-        <div class="next-stop-actions"><button id="nextStopMapBtn" class="next-map-btn">🧭 XEM ĐIỂM TRÊN BẢN ĐỒ</button></div>
-      </div>
-
-      <div class="action-grid">
-        <button id="followBtn" class="action primary-action">🎯 <span>THEO DÕI ĐOÀN</span></button>
-        <button id="mapsBtn" class="action dark-action">🧭 <span>MỞ GOOGLE MAPS</span></button>
-        <button id="shareBtn" class="action dark-action share-action">↗ <span>CHIA SẺ LIVE</span></button>
+        <div class="next-stop-actions">
+          <button id="nextStopMapBtn" class="next-map-btn">🧭 XEM ĐIỂM TRÊN BẢN ĐỒ</button>
+          <button id="nextStopDirectionsBtn" class="next-map-btn">🚗 CHỈ ĐƯỜNG ĐẾN ĐIỂM TIẾP THEO</button>
+        </div>
       </div>
 
       <div class="gallery"><img src="./hero-night.jpg" alt="Hồng Lân 139 biểu diễn"><div class="gallery-caption">GIỮ BẢN SẮC • LAN TỎA ĐAM MÊ</div></div>
@@ -241,6 +245,13 @@ function renderRoute(route){
   }
 }
 $("nextStopMapBtn").onclick=()=>{if(currentRoute&&map)map.setView([Number(currentRoute.lat),Number(currentRoute.lng)],16,{animate:true});};
+
+$("nextStopDirectionsBtn").onclick=()=>{
+  if(!currentRoute || !Number.isFinite(Number(currentRoute.lat)) || !Number.isFinite(Number(currentRoute.lng))) return;
+  const lat=Number(currentRoute.lat), lng=Number(currentRoute.lng);
+  const url=`https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`;
+  window.open(url,"_blank");
+};
 
 function startViewer(){
   if(viewerStarted)return; viewerStarted=true;
