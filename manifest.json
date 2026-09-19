@@ -1,20 +1,16 @@
 {
   "name": "Hồng Lân 139 GPS LIVE",
-  "short_name": "HL139 GPS",
-  "start_url": "./",
+  "short_name": "Hồng Lân 139",
+  "id": "./",
+  "start_url": "./?source=pwa",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#f3f4f6",
-  "theme_color": "#111827",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "background_color": "#100808",
+  "theme_color": "#100808",
+  "description": "Theo dõi vị trí LIVE của Hồng Lân 139.",
   "icons": [
-    {
-      "src": "./icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "./icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    }
+    {"src":"./icon-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
+    {"src":"./icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
   ]
 }

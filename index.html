@@ -8,7 +8,8 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Hồng Lân 139 GPS">
   <link rel="manifest" href="./manifest.json">
-  <link rel="apple-touch-icon" href="./icon-192.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
   <link rel="stylesheet" href="./style.css">
   <title>Hồng Lân 139 • GPS LIVE</title>
 </head>
@@ -27,6 +28,15 @@
         <span>HONG LAN LION &amp; DRAGON CLUB</span>
         <strong>THEO DÕI ĐOÀN<br>TRỰC TIẾP</strong>
       </div>
+    </section>
+
+    <section class="install-card" id="installCard">
+      <div class="install-icon">📱</div>
+      <div class="install-copy">
+        <b>THÊM HỒNG LÂN 139 VÀO MÀN HÌNH CHÍNH</b>
+        <span>Mở GPS LIVE nhanh như một ứng dụng riêng</span>
+      </div>
+      <button id="installBtn" class="install-btn">THÊM APP</button>
     </section>
 
     <section class="mode-card">
@@ -83,6 +93,39 @@
     <footer><img src="./logo-honglan139.png" alt=""><div><b>HỒNG LÂN 139</b><span>HONG LAN LION &amp; DRAGON CLUB</span></div></footer>
   </main>
 
+<script>
+(() => {
+  const btn = document.getElementById('installBtn');
+  const card = document.getElementById('installCard');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+      alert('Hồng Lân 139 GPS LIVE đã được thêm vào Màn hình chính rồi.');
+      return;
+    }
+    if (window.deferredInstallPrompt) {
+      window.deferredInstallPrompt.prompt();
+      await window.deferredInstallPrompt.userChoice;
+      window.deferredInstallPrompt = null;
+      return;
+    }
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const message = isIOS
+      ? 'Trên iPhone: bấm nút Chia sẻ ⬆️ ở Safari → chọn “Thêm vào Màn hình chính” → bấm “Thêm”.'
+      : 'Mở menu của trình duyệt → chọn “Thêm vào màn hình chính” hoặc “Cài đặt ứng dụng”.';
+    alert(message);
+  });
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault();
+    window.deferredInstallPrompt = e;
+  });
+})();
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+}
+</script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
