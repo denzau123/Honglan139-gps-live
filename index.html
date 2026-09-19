@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#111827">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="HL139 GPS">
+  <link rel="manifest" href="./manifest.json">
+  <link rel="apple-touch-icon" href="./icon-192.png">
+  <link rel="stylesheet" href="./style.css">
+  <title>Hồng Lân 139 GPS LIVE</title>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <div class="logo">🦁</div>
+      <div><h1>HỒNG LÂN 139</h1><p>GPS LIVE</p></div>
+    </header>
+
+    <section class="card">
+      <h2>Chọn chế độ</h2>
+      <button id="driverBtn" class="primary">📍 PHÁT GPS LIVE</button>
+      <button id="viewerBtn" class="secondary">🗺️ XEM VỊ TRÍ LIVE</button>
+    </section>
+
+    <section id="driver" class="card hidden">
+      <h2>Phát vị trí</h2>
+      <p id="authStatus">Chưa đăng nhập</p>
+      <input id="email" type="email" placeholder="Email Firebase">
+      <input id="password" type="password" placeholder="Mật khẩu">
+      <button id="loginBtn" class="primary">ĐĂNG NHẬP</button>
+      <button id="startBtn" class="live hidden">🔴 BẮT ĐẦU LIVE</button>
+      <button id="stopBtn" class="stop hidden">⏹ DỪNG LIVE</button>
+      <div id="driverInfo" class="status">Đang chờ...</div>
+    </section>
+
+    <section id="viewer" class="card hidden">
+      <h2>Vị trí đoàn</h2>
+      <div id="liveBadge" class="status">⚪ CHƯA CÓ TÍN HIỆU</div>
+      <div id="map"></div>
+      <div id="viewInfo" class="status">Đang kết nối...</div>
+    </section>
+  </main>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
+import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-database.js";
+import { firebaseConfig } from "./firebase-config.js";
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getDatabase(app);
+const liveRef = ref(db, "live/hong_lan_139");
+
+const $ = id => document.getElementById(id);
+let watchId = null;
+let lastSent = 0;
+
+$("driverBtn").onclick = () => {
+  $("driver").classList.remove("hidden");
+  $("viewer").classList.add("hidden");
+};
+$("viewerBtn").onclick = () => {
+  $("viewer").classList.remove("hidden");
+  $("driver").classList.add("hidden");
+  startViewer();
+};
+
+onAuthStateChanged(auth, user => {
+  if (user) {
+    $("authStatus").textContent = "Đã đăng nhập: " + user.email;
+    $("loginBtn").classList.add("hidden");
+    $("startBtn").classList.remove("hidden");
+  }
+});
+
+$("loginBtn").onclick = async () => {
+  try {
+    await signInWithEmailAndPassword(auth, $("email").value.trim(), $("password").value);
+  } catch (e) {
+    $("authStatus").textContent = "Đăng nhập lỗi: " + e.message;
+  }
+};
+
+$("startBtn").onclick = () => {
+  if (!navigator.geolocation) {
+    $("driverInfo").textContent = "iPhone không hỗ trợ GPS trình duyệt.";
+    return;
+  }
+  watchId = navigator.geolocation.watchPosition(async pos => {
+    const now = Date.now();
+    if (now - lastSent < 5000) return;
+    lastSent = now;
+    const c = pos.coords;
+    try {
+      await set(liveRef, {
+        live: true,
+        lat: c.latitude,
+        lng: c.longitude,
+        accuracy: c.accuracy ?? null,
+        speed: c.speed ?? null,
+        heading: c.heading ?? null,
+        updatedAt: now
+      });
+      $("driverInfo").textContent =
+        `LIVE • ${c.latitude.toFixed(6)}, ${c.longitude.toFixed(6)} • ±${Math.round(c.accuracy || 0)}m`;
+    } catch (e) {
+      $("driverInfo").textContent = "Không gửi được GPS: " + e.message;
+    }
+  }, err => {
+    $("driverInfo").textContent = "GPS lỗi: " + err.message;
+  }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 });
+
+  $("startBtn").classList.add("hidden");
+  $("stopBtn").classList.remove("hidden");
+};
+
+$("stopBtn").onclick = async () => {
+  if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+  watchId = null;
+  await set(liveRef, { live: false, updatedAt: Date.now() });
+  $("stopBtn").classList.add("hidden");
+  $("startBtn").classList.remove("hidden");
+  $("driverInfo").textContent = "Đã dừng LIVE.";
+};
+
+let map, marker;
+function startViewer() {
+  if (window.L && map) return;
+  const s = document.createElement("link");
+  s.rel = "stylesheet";
+  s.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+  document.head.appendChild(s);
+  const js = document.createElement("script");
+  js.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+  js.onload = () => {
+    map = L.map("map").setView([16.0471,108.2068], 12);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19, attribution: "&copy; OpenStreetMap contributors"
+    }).addTo(map);
+    onValue(liveRef, snap => {
+      const d = snap.val();
+      if (!d || !d.lat || !d.lng) {
+        $("liveBadge").textContent = "⚪ CHƯA CÓ TÍN HIỆU";
+        return;
+      }
+      const ll = [d.lat, d.lng];
+      if (!marker) {
+        marker = L.marker(ll).addTo(map).bindPopup("Hồng Lân 139");
+        map.setView(ll, 16);
+      } else {
+        marker.setLatLng(ll);
+      }
+      $("liveBadge").textContent = d.live ? "🔴 ĐANG LIVE" : "⚪ ĐÃ DỪNG";
+      const age = Math.max(0, Math.round((Date.now() - (d.updatedAt || Date.now())) / 1000));
+      $("viewInfo").textContent = `Cập nhật ${age}s trước • Độ chính xác ±${Math.round(d.accuracy || 0)}m`;
+    });
+  };
+  document.head.appendChild(js);
+}
+</script>
+</body>
+</html>
